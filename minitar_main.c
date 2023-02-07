@@ -16,10 +16,10 @@ int main(int argc, char **argv) {
     // TODO: Parse command-line arguments and invoke functions from 'minitar.h'
     // to execute archive operations
 
+    const char *archive_name = argv[3];
+
     if (!strcmp(argv[1], "-c")) {
         // create
-
-        const char *archive_name = argv[3];
 
         // start at 4, first 3 args are non-file names
         for (int i = 4; i<argc; i++) {
@@ -37,8 +37,21 @@ int main(int argc, char **argv) {
     } 
     
     else if (!strcmp(argv[1], "-a")) {
-        printf("append called\n");
         // append
+
+        // start at 4, first 3 args are non-file names
+        for (int i = 4; i<argc; i++) {
+            if(file_list_add(&files, argv[i])) {
+                perror("Error adding file to file list");
+                goto failure;
+            }
+        }
+
+        if (append_files_to_archive(archive_name, &files)) {
+            perror("Error in appending files to archive");
+            goto failure;
+        }
+
     } 
     
     else if (!strcmp(argv[1], "-t")) {
