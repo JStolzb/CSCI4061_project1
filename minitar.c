@@ -226,6 +226,115 @@ int create_archive(const char *archive_name, const file_list_t *files) {
 
 int append_files_to_archive(const char *archive_name, const file_list_t *files) {
     // TODO: Not yet implemented
+    if (access(archive_name, F_OK) != 0) {
+        printf("Archive %s doesn't exist\n", archive_name);
+        return -1;
+    }
+    
+    int ret = remove_trailing_bytes(archive_name, 1024);
+    if(ret == -1) {
+        perror("Error removing trailing bytes");
+        return -1;
+    }
+
+    FILE* tar_file = fopen(archive_name, "a");
+    if(tar_file == NULL) {
+        perror("Error opening tar file");
+        return -1;
+    }
+
+    node_t *curfile = files->head;
+    for (int i = 0; i<files->size; i++) {
+
+        // Create and populate file header
+        tar_header header;
+
+        if(fill_tar_header(&header, curfile->name)) {
+            perror("Error in creating file header");
+            if (fclose(tar_file)) {
+                perror("Error closing tar file");
+            }
+            return -1;
+        }
+
+        // Write file header to tar file
+        if (fwrite(&header, sizeof(char), sizeof(tar_header), tar_file) < sizeof(tar_header)) {
+            perror("Error writing header to tar file");
+            if (fclose(tar_file)) {
+                perror("Error closing tar file");
+            }
+            return -1;
+        }
+        
+        // Open current file to be written to tar file
+        FILE* f = fopen(curfile->name, "r");
+
+        if (f == NULL) {
+            perror("Error");
+            if (fclose(tar_file)) {
+                perror("Error closing tar file");
+            }
+            return -1;
+        }
+
+        int bytes_read = 1;
+        char buf[512];
+
+        // Initially fill the buffer with all zero bytes
+        memset(&buf, 0, 512);
+        
+        while (bytes_read) {
+            // Read into buf, which up to this point, will be filled with 0's
+            bytes_read = fread(&buf, sizeof(char), sizeof(buf), f);
+            // TODO: error check fread
+
+            if (bytes_read) {
+                if (fwrite(&buf, sizeof(char), sizeof(buf), tar_file) < sizeof(buf)) {
+                    perror("Error writing file data to tar file");
+                    if (fclose(tar_file) || fclose(f)) {
+                        perror("Error closing files");
+                    }
+                    return -1;
+                }
+            } else if (ferror(f)) {
+                perror("Error reading data file");
+                if (fclose(tar_file) || fclose(f)) {
+                    perror("Error closing files");
+                }
+                return -1;
+            }
+
+            memset(&buf, 0, 512);
+        }
+
+        if (fclose(f)) {
+            perror("Error closing data file");
+            if (fclose(tar_file)) {
+                perror("Error closing tar file");
+            }
+            return -1;
+        }
+
+        curfile = curfile->next;
+    }
+
+    // Write the 2 512-byte zero blocks that act as a footer
+    char footer[1024];
+    memset(&footer, 0, sizeof(footer));
+    
+    if (fwrite(&footer, sizeof(char), sizeof(footer), tar_file) < sizeof(footer)) {
+            perror("Error writing footer to tar file");
+            if (fclose(tar_file)) {
+                perror("Error closing tar file");
+            }
+            return -1;
+    }
+
+    if (fclose(tar_file)) {
+        perror("Error closing tar file");
+        return -1;
+    }
+
     return 0;
 }
 
