@@ -152,7 +152,7 @@ int create_archive(const char *archive_name, const file_list_t *files) {
             return -1;
         }
         
-        // Open current file to be written to tar file
+        // Open current file to be written to tar file and error check
         FILE* f = fopen(curfile->name, "r");
 
         if (f == NULL) {
@@ -183,6 +183,7 @@ int create_archive(const char *archive_name, const file_list_t *files) {
                     }
                     return -1;
                 }
+            // Error check fread here
             } else if (ferror(f)) {
                 perror("Error reading data file");
                 if (fclose(tar_file) || fclose(f)) {
@@ -198,6 +199,7 @@ int create_archive(const char *archive_name, const file_list_t *files) {
         // Close data file and error check
         if (fclose(f)) {
             perror("Error closing data file");
+            // Close tar file and error check
             if (fclose(tar_file)) {
                 perror("Error closing tar file");
             }
@@ -306,6 +308,7 @@ int append_files_to_archive(const char *archive_name, const file_list_t *files) 
                     }
                     return -1;
                 }
+            // Error check fread
             } else if (ferror(f)) {
                 perror("Error reading data file");
                 if (fclose(tar_file) || fclose(f)) {
@@ -330,10 +333,11 @@ int append_files_to_archive(const char *archive_name, const file_list_t *files) 
         curfile = curfile->next;
     }
 
-    // Write the 2 512-byte zero blocks that act as a footer
+    // Fill 1024-byte buffer with zero bytes that act as 2-512 byte footer blocks
     char footer[1024];
     memset(&footer, 0, sizeof(footer));
     
+    // Write footer and error check
     if (fwrite(&footer, sizeof(char), sizeof(footer), tar_file) < sizeof(footer)) {
             perror("Error writing footer to tar file");
             if (fclose(tar_file)) {
@@ -495,11 +499,11 @@ int extract_files_from_archive(const char *archive_name) {
                 } else {
                     // If error occurs, close tar file and data file and assure they close correctly
                     if (fclose(tar_file) || fclose(data_file)) {
-                            perror("Error closing tar file or data file");
-                        }
+                        perror("Error closing tar file or data file");
+                    }
                 }
 
-                 // Seek to next header in tar file and error check
+                // Seek to next header in tar file and error check
                 if (fseek(tar_file, 512-num_bytes_read, SEEK_CUR)) {
                     perror("Error seeking in file while getting file list from archive");
                     if (fclose(tar_file) || fclose(data_file)) {
@@ -526,8 +530,8 @@ int extract_files_from_archive(const char *archive_name) {
                 } else {
                     // If error occurs, close tar file and data file and assure they close correctly
                     if (fclose(tar_file) || fclose(data_file)) {
-                            perror("Error closing tar file or data file");
-                        }
+                        perror("Error closing tar file or data file");
+                    }
                 }
 
                 convertedSize = convertedSize - 512;

@@ -85,6 +85,7 @@ int main(int argc, char **argv) {
         file_list_t archive_files;
         file_list_init(&archive_files);
 
+        // Grab file list from archive
         if (get_archive_file_list(archive_name, &archive_files)) {
             perror("Error in getting the list of files");
             file_list_clear(&archive_files);
@@ -127,6 +128,7 @@ int main(int argc, char **argv) {
             goto failure;
         }
 
+        // Extract files and error check
         if(extract_files_from_archive(archive_name)) {
             perror("Error extracting files from archive");
             goto failure;
