@@ -55,8 +55,14 @@ int main(int argc, char **argv) {
     } 
     
     else if (!strcmp(argv[1], "-t")) {
-        printf("list called\n");
         // list
+
+        get_archive_file_list(archive_name, &files);
+        node_t * currNode = files.head;
+        while(currNode != NULL) {
+            printf("%s\n", currNode->name);
+            currNode = currNode->next;
+        }
     } 
     
     else if (!strcmp(argv[1], "-u")) {

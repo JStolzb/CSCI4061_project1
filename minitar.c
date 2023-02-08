@@ -172,7 +172,6 @@ int create_archive(const char *archive_name, const file_list_t *files) {
         while (bytes_read) {
             // Read into buf, which up to this point, will be filled with 0's
             bytes_read = fread(&buf, sizeof(char), sizeof(buf), f);
-            // TODO: error check fread
 
             if (bytes_read) {
                 if (fwrite(&buf, sizeof(char), sizeof(buf), tar_file) < sizeof(buf)) {
@@ -340,6 +339,44 @@ int append_files_to_archive(const char *archive_name, const file_list_t *files) 
 
 int get_archive_file_list(const char *archive_name, file_list_t *files) {
     // TODO: Not yet implemented
+
+    FILE* tar_file = fopen(archive_name, "r");
+    if(tar_file == NULL) {
+        perror("Error opening tar file");
+        return -1;
+    }
+
+
+    int convertedSize = 1;
+
+    while(convertedSize != 0) {
+        tar_header header;
+        fread(&header, 1, sizeof(tar_header), tar_file);
+        if(ferror(tar_file)) {
+            perror("Error reading");
+            return -1;
+        }
+
+
+        convertedSize = 0;
+
+        int num_scanned = sscanf(header.size, "%o", &convertedSize);
+        if(convertedSize < 1) {
+            break;
+        }
+
+        if(num_scanned < 1) {
+            perror("Error reading header size");
+            return -1;
+        }
+
+        file_list_add(files, header.name);
+
+        fseek(tar_file, convertedSize + (512 - (convertedSize % 512)), SEEK_CUR);
+
+    }
+
+    fclose(tar_file);
     return 0;
 }
 
