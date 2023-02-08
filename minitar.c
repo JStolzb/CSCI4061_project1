@@ -383,6 +383,10 @@ int get_archive_file_list(const char *archive_name, file_list_t *files) {
         // Error check sscanf
         if(num_scanned < 1) {
             perror("Error reading header size");
+            // Close tar file and error check
+            if (fclose(tar_file)) {
+                perror("Error closing tar file");
+            }
             return -1;
         }
 
@@ -396,7 +400,13 @@ int get_archive_file_list(const char *archive_name, file_list_t *files) {
         }
 
         // Seek to next header in tar file
-        fseek(tar_file, convertedSize + (512 - (convertedSize % 512)), SEEK_CUR);
+        if (fseek(tar_file, convertedSize + (512 - (convertedSize % 512)), SEEK_CUR)) {
+            perror("Error seeking in file while getting file list from archive");
+            if (fclose(tar_file)) {
+                perror("Error closing tar file");
+            }
+            return -1;
+        }
 
     }
 
@@ -410,6 +420,135 @@ int get_archive_file_list(const char *archive_name, file_list_t *files) {
 }
 
 int extract_files_from_archive(const char *archive_name) {
-    // TODO: Not yet implemented
+    
+    // Open tar file and error check
+    FILE* tar_file = fopen(archive_name, "r");
+    if(tar_file == NULL) {
+        perror("Error opening tar file");
+        return -1;
+    }
+    
+    int convertedSize = 1;
+
+    while(1) {
+
+        tar_header header;
+
+        // Read tar data into header object and error check
+        fread(&header, 1, sizeof(tar_header), tar_file);
+        if(ferror(tar_file)) {
+            perror("Error reading");
+            return -1;
+        }
+
+        // Convert read header data into integer representing file size
+        convertedSize = 0;
+        int num_scanned = sscanf(header.size, "%o", &convertedSize);
+
+        // Breaks overall loop
+        if(convertedSize < 1) {
+            break;
+        }
+
+        // Error check sscanf
+        if(num_scanned < 1) {
+            perror("Error reading header size");
+            // Close tar file and error check
+            if (fclose(tar_file)) {
+                perror("Error closing tar file");
+            }
+            return -1;
+        }
+
+        // Open data file for writing to and error check
+        FILE* data_file = fopen(header.name, "w");
+        if(data_file == NULL) {
+            perror("Error opening data file");
+            // Close tar file and error check
+            if (fclose(tar_file)) {
+                perror("Error closing tar file");
+            }
+            return -1;
+        }
+
+        char buf[512];
+        int num_bytes_read;
+
+        // Read data from tar file and write to data file loop
+        while(convertedSize > 0) {
+
+            if (convertedSize < 512) {
+                num_bytes_read = fread(&buf, 1, convertedSize, tar_file);
+
+                // Check that nonzero amount of bytes read
+                if (num_bytes_read) {
+                    // Write data to data file from archive and error check via num_bytes_read
+                    if(fwrite(&buf, sizeof(char), num_bytes_read, data_file) < num_bytes_read) {
+                        perror("Error writing data to data file from archive");
+                        // If error occurs, close tar file and data file and assure they close correctly
+                        if (fclose(tar_file) || fclose(data_file)) {
+                            perror("Error closing tar file or data file");
+                        }
+                        return -1;
+                    }
+                // We will only read 0 bytes if an error occurs
+                } else {
+                    // If error occurs, close tar file and data file and assure they close correctly
+                    if (fclose(tar_file) || fclose(data_file)) {
+                            perror("Error closing tar file or data file");
+                        }
+                }
+
+                 // Seek to next header in tar file and error check
+                if (fseek(tar_file, 512-num_bytes_read, SEEK_CUR)) {
+                    perror("Error seeking in file while getting file list from archive");
+                    if (fclose(tar_file) || fclose(data_file)) {
+                        perror("Error closing tar file or data file");
+                    }
+                    return -1;
+                }
+                convertedSize = 0;
+            } else {
+                num_bytes_read = fread(&buf, 1, sizeof(buf), tar_file);
+
+                // Check that nonzero amount of bytes read
+                if (num_bytes_read) {
+                    // Write data to data file from archive and error check via num_bytes_read
+                    if(fwrite(&buf, sizeof(char), num_bytes_read, data_file) < num_bytes_read) {
+                        perror("Error writing data to data file from archive");
+                        // If error occurs, close tar file and data file and assure they close correctly
+                        if (fclose(tar_file) || fclose(data_file)) {
+                            perror("Error closing tar file or data file");
+                        }
+                        return -1;
+                    }
+                // We will only read 0 bytes if an error occurs
+                } else {
+                    // If error occurs, close tar file and data file and assure they close correctly
+                    if (fclose(tar_file) || fclose(data_file)) {
+                            perror("Error closing tar file or data file");
+                        }
+                }
+
+                convertedSize = convertedSize - 512;
+            }
+        }
+
+        // Close tar file and error check
+        if (fclose(data_file)) {
+            perror("Error closing data file");
+            if (fclose(tar_file)) {
+                perror("Error closing tar file");
+            }
+            return -1;
+        }
+    }
+
+    // Close tar file and error check
+    if (fclose(tar_file)) {
+        perror("Error closing tar file");
+        return -1;
+    }
+    
     return 0;
 }

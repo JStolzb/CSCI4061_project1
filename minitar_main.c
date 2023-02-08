@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
         // Checks that archive exists
         if (access(archive_name, F_OK) != 0) {
             printf("Archive %s doesn't exist\n", archive_name);
-            return -1;
+            goto failure;
         }
 
         // Get the list of files in the archive
@@ -119,8 +119,18 @@ int main(int argc, char **argv) {
     } 
     
     else if (!strcmp(argv[1], "-x")) {
-        printf("extract called\n");
         // extract
+
+        // Checks that archive exists
+        if (access(archive_name, F_OK) != 0) {
+            printf("Archive %s doesn't exist\n", archive_name);
+            goto failure;
+        }
+
+        if(extract_files_from_archive(archive_name)) {
+            perror("Error extracting files from archive");
+            goto failure;
+        }
     } 
     
     else {
