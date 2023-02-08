@@ -173,7 +173,9 @@ int create_archive(const char *archive_name, const file_list_t *files) {
             // Read into buf, which up to this point, will be filled with 0's
             bytes_read = fread(&buf, sizeof(char), sizeof(buf), f);
 
+            // check that some amount of bytes were read
             if (bytes_read) {
+                // Write to tar file and error check
                 if (fwrite(&buf, sizeof(char), sizeof(buf), tar_file) < sizeof(buf)) {
                     perror("Error writing file data to tar file");
                     if (fclose(tar_file) || fclose(f)) {
@@ -189,9 +191,11 @@ int create_archive(const char *archive_name, const file_list_t *files) {
                 return -1;
             }
 
+            // Set buffer to 0 bytes
             memset(&buf, 0, 512);
         }
 
+        // Close data file and error check
         if (fclose(f)) {
             perror("Error closing data file");
             if (fclose(tar_file)) {
@@ -207,6 +211,7 @@ int create_archive(const char *archive_name, const file_list_t *files) {
     char footer[1024];
     memset(&footer, 0, sizeof(footer));
     
+    // Write footer and error check
     if (fwrite(&footer, sizeof(char), sizeof(footer), tar_file) < sizeof(footer)) {
             perror("Error writing footer to tar file");
             if (fclose(tar_file)) {
@@ -215,6 +220,7 @@ int create_archive(const char *archive_name, const file_list_t *files) {
             return -1;
     }
 
+    // Close tar file and error check
     if (fclose(tar_file)) {
         perror("Error closing tar file");
         return -1;
@@ -224,18 +230,21 @@ int create_archive(const char *archive_name, const file_list_t *files) {
 }
 
 int append_files_to_archive(const char *archive_name, const file_list_t *files) {
-    // TODO: Not yet implemented
+
+    // Check that the tar file exists
     if (access(archive_name, F_OK) != 0) {
         printf("Archive %s doesn't exist\n", archive_name);
         return -1;
     }
     
+    // Remove the footer from the tar file
     int ret = remove_trailing_bytes(archive_name, 1024);
     if(ret == -1) {
         perror("Error removing trailing bytes");
         return -1;
     }
 
+    // Open tar file and error check
     FILE* tar_file = fopen(archive_name, "a");
     if(tar_file == NULL) {
         perror("Error opening tar file");
@@ -248,6 +257,7 @@ int append_files_to_archive(const char *archive_name, const file_list_t *files) 
         // Create and populate file header
         tar_header header;
 
+        // Error check tar header
         if(fill_tar_header(&header, curfile->name)) {
             perror("Error in creating file header");
             if (fclose(tar_file)) {
@@ -285,9 +295,10 @@ int append_files_to_archive(const char *archive_name, const file_list_t *files) 
         while (bytes_read) {
             // Read into buf, which up to this point, will be filled with 0's
             bytes_read = fread(&buf, sizeof(char), sizeof(buf), f);
-            // TODO: error check fread
 
+            // Check that some amount of bytes were read
             if (bytes_read) {
+                // Write to tar file and error check
                 if (fwrite(&buf, sizeof(char), sizeof(buf), tar_file) < sizeof(buf)) {
                     perror("Error writing file data to tar file");
                     if (fclose(tar_file) || fclose(f)) {
@@ -303,9 +314,11 @@ int append_files_to_archive(const char *archive_name, const file_list_t *files) 
                 return -1;
             }
 
+            // Refill buffer with 0 bytes
             memset(&buf, 0, 512);
         }
 
+        // Close file and error check
         if (fclose(f)) {
             perror("Error closing data file");
             if (fclose(tar_file)) {
@@ -329,6 +342,7 @@ int append_files_to_archive(const char *archive_name, const file_list_t *files) 
             return -1;
     }
 
+    // Close file and error check
     if (fclose(tar_file)) {
         perror("Error closing tar file");
         return -1;
@@ -338,8 +352,8 @@ int append_files_to_archive(const char *archive_name, const file_list_t *files) 
 }
 
 int get_archive_file_list(const char *archive_name, file_list_t *files) {
-    // TODO: Not yet implemented
 
+    // Open tar file and error check
     FILE* tar_file = fopen(archive_name, "r");
     if(tar_file == NULL) {
         perror("Error opening tar file");
@@ -351,32 +365,47 @@ int get_archive_file_list(const char *archive_name, file_list_t *files) {
 
     while(convertedSize != 0) {
         tar_header header;
+
+        // Read tar data into header object and error check
         fread(&header, 1, sizeof(tar_header), tar_file);
         if(ferror(tar_file)) {
             perror("Error reading");
             return -1;
         }
 
-
+        // Convert read header data into integer representing file size
         convertedSize = 0;
-
         int num_scanned = sscanf(header.size, "%o", &convertedSize);
         if(convertedSize < 1) {
             break;
         }
 
+        // Error check sscanf
         if(num_scanned < 1) {
             perror("Error reading header size");
             return -1;
         }
 
-        file_list_add(files, header.name);
+        // Add file name to linked list and error check
+        if (file_list_add(files, header.name)) {
+            perror("Error adding file to file list when reading existing archive");
+            if (fclose(tar_file)) {
+                perror("Error closing tar file");
+            }
+            return -1;
+        }
 
+        // Seek to next header in tar file
         fseek(tar_file, convertedSize + (512 - (convertedSize % 512)), SEEK_CUR);
 
     }
 
-    fclose(tar_file);
+    // Close tar file and error check
+    if (fclose(tar_file)) {
+        perror("Error closing tar file");
+        return -1;
+    }
+    
     return 0;
 }
 
